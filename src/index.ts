@@ -68,9 +68,11 @@ export interface UsagePayload {
 export interface ActivationResponse {
     success: boolean;
     message: string;
-    activation?: any;
-    license?: any;
+    currentActivations?: number;
+    expiresAt?: string;
+    entitlements?: Record<string, any>; // Feature flags
     proof?: string; // Signed JWT
+    error?: string;
 }
 
 export interface VerificationResponse {
