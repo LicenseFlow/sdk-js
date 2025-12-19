@@ -1,6 +1,6 @@
 {
   "name": "licenseflow",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,12 +9,25 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "license",
+    "licensing",
+    "software-licensing",
+    "activation",
+    "entitlements",
+    "offline-licensing",
+    "release-management"
+  ],
+  "author": "LicenseFlow",
+  "license": "MIT",
+  "description": "Official Node.js SDK for LicenseFlow - Complete licensing and software distribution platform",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/licenseflow"
+  },
   "dependencies": {
     "axios": "^1.13.2",
     "axios-retry": "^4.5.0",
@@ -25,6 +38,7 @@
   },
   "devDependencies": {
     "msw": "^2.12.4",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "@types/node": "^20.0.0"
   }
 }

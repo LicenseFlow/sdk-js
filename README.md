@@ -1,69 +1,321 @@
-# @licenseflow/node-sdk
+# LicenseFlow Node.js SDK
 
-Official Node.js SDK for LicenseFlow.
+Official Node.js/TypeScript SDK for LicenseFlow - Complete licensing and software distribution platform.
 
 ## Installation
 
 ```bash
-npm install @licenseflow/node-sdk
-```
-
-## Quick Start
-
-```javascript
-const { LicenseFlowClient } = require('@licenseflow/node-sdk');
-
-const client = new LicenseFlowClient({
-  baseUrl: 'https://your-project.supabase.co',
-  apiKey: 'your-api-key',
-  jwtSecret: 'your-jwt-secret' // Required for offline validation
-});
-
-async function main() {
-  try {
-    // 1. Activate License (automatically generates hardware fingerprint if node-machine-id is available)
-    const activation = await client.activate({
-      license_key: 'XXXX-YYYY-ZZZZ-AAAA',
-      device_name: 'My Computer'
-    });
-    console.log('Activated:', activation.success);
-
-    // 2. Verify License (uses internal caching for performance)
-    const verification = await client.verify({
-      license_key: 'XXXX-YYYY-ZZZZ-AAAA'
-    });
-    console.log('Valid:', verification.valid);
-
-    // 3. Record Usage
-    await client.recordUsage({
-      license_key: 'XXXX-YYYY-ZZZZ-AAAA',
-      metric_name: 'tokens_used',
-      value: 150,
-      increment: true
-    });
-
-  } catch (error) {
-    if (error.name === 'RateLimitError') {
-      console.error('Slow down!');
-    } else if (error.name === 'InvalidLicenseError') {
-      console.error('License is not valid');
-    } else {
-      console.error('Error:', error.message);
-    }
-  }
-}
-
-main();
+npm install licenseflow
 ```
 
 ## Features
 
-- **Hardware Fingerprinting**: Built-in support for unique device identification.
-- **Smart Caching**: In-memory caching of verification results with configurable TTL.
-- **Automatic Retries**: Resilience against network blips with exponential backoff.
-- **TypeScript First**: First-class type definitions included.
-- **Offline Validation**: Validate signed proofs without an internet connection.
+- ✅ **License Activation & Verification** - Activate and verify license keys
+- ✅ **Hardware Binding** - Lock licenses to specific devices
+- ✅ **Entitlements** (Phase 5) - Feature flags and tier-based access control
+- ✅ **Release Management** (Phase 5) - Check for updates and download artifacts
+- ✅ **Offline Licensing** (Phase 5) - Cryptographically signed offline licenses
+- ✅ **Usage Tracking** - Track metrics and enforce limits
+- ✅ **Caching** - Built-in response caching for performance
+
+## Quick Start
+
+```typescript
+import { LicenseFlowClient } from 'licenseflow';
+
+const client = new LicenseFlowClient({
+  apiKey: 'your-api-key',
+  baseUrl: 'https://your-project.supabase.co'
+});
+
+// Activate license
+const activation = await client.activate({
+  licenseKey: 'XXXX-XXXX-XXXX-XXXX',
+  device_id: client.getHardwareId()
+});
+
+console.log('Activated:', activation.success);
+
+// Verify license
+const verification = await client.verify({
+  licenseKey: 'XXXX-XXXX-XXXX-XXXX',
+  device_id: client.getHardwareId()
+});
+
+console.log('Valid:', verification.valid);
+```
+
+## Phase 5: Entitlements
+
+Check feature access based on license tier:
+
+```typescript
+const verification = await client.verify({licenseKey: 'XXX'});
+
+// Check boolean feature
+if (client.hasFeature(verification, 'ai_features')) {
+  // Enable AI assistant
+  enableAI();
+}
+
+// Get numeric limit
+const limit = client.getEntitlement(verification, 'api_rate_limit')?.limit || 1000;
+console.log(`Your rate limit: ${limit} requests/hour`);
+
+// Get string value
+const resolution = client.getEntitlement(verification, 'max_export_resolution')?.value;
+console.log(`Max resolution: ${resolution}`); // "4k", "8k", etc.
+```
+
+## Phase 5: Release Management
+
+Check for updates and download new versions:
+
+```typescript
+// Check for updates
+const update = await client.checkForUpdates({
+  currentVersion: 'v1.5.0',
+  product_id: 'your-product-id',
+  channel: 'stable' // or 'beta', 'alpha', 'nightly'
+});
+
+if (update) {
+  console.log(`New version available: ${update.version}`);
+  console.log('Changelog:', update.changelog);
+  
+  // Download with license
+  const download = await client.downloadArtifact({
+    licenseKey: 'XXXX-XXXX',
+    release_id: update.id,
+    platform: process.platform, // 'darwin', 'win32', 'linux'
+    architecture: process.arch // 'x64', 'arm64'
+  });
+  
+  console.log('Download URL:', download.url); // Valid for 15 minutes
+  console.log('SHA-256:', download.checksum_sha256);
+}
+```
+
+## Phase 5: Offline Licensing
+
+Verify licenses without internet access:
+
+```typescript
+import fs from 'fs';
+
+const licenseFile = fs.readFileSync('license.lic', 'utf8');
+const publicKey = 'YOUR_ORG_PUBLIC_KEY_HEX';
+
+try {
+  const license = await client.verifyOfflineLicense(licenseFile, publicKey);
+  
+  console.log('Offline license valid!');
+  console.log('Customer:', license.customer_name);
+  console.log('Entitlements:', license.entitlements);
+  console.log('Valid until:', license.valid_until);
+} catch (error) {
+  console.error('Invalid offline license:', error.message);
+}
+```
+
+## API Reference
+
+### Client Methods
+
+#### `activate(payload)`
+Activate a license on a device.
+
+```typescript
+const result = await client.activate({
+  licenseKey: 'XXXX-XXXX-XXXX-XXXX',
+  device_id: client.getHardwareId(),
+  metadata: { /* optional */ }
+});
+```
+
+#### `verify(payload)`
+Verify a license status.
+
+```typescript
+const result = await client.verify({
+  licenseKey: 'XXXX-XXXX-XXXX-XXXX',
+  device_id: client.getHardwareId()
+});
+```
+
+#### `deactivate(payload)`
+Deactivate a license from a device.
+
+```typescript
+await client.deactivate({
+  licenseKey: 'XXXX-XXXX-XXXX-XXXX',
+  device_id: client.getHardwareId()
+});
+```
+
+#### `hasFeature(verification, featureCode)`
+**Phase 5:** Check if a feature is enabled.
+
+```typescript
+if (client.hasFeature(verification, 'premium_support')) {
+  // Show premium support option
+}
+```
+
+#### `getEntitlement(verification, featureCode)`
+**Phase 5:** Get entitlement value.
+
+```typescript
+const value = client.getEntitlement(verification, 'storage_limit');
+console.log('Storage limit:', value?.limit); // 100GB, 1TB, etc.
+```
+
+#### `checkForUpdates(opts)`
+**Phase 5:** Check for software updates.
+
+```typescript
+const update = await client.checkForUpdates({
+  currentVersion: 'v1.0.0',
+  product_id: 'uuid',
+  channel: 'stable'
+});
+```
+
+#### `downloadArtifact(opts)`
+**Phase 5:** Get license-gated download URL.
+
+```typescript
+const download = await client.downloadArtifact({
+  licenseKey: 'XXXX-XXXX',
+  release_id: 'uuid',
+  platform: 'windows',
+  architecture: 'x64'
+});
+```
+
+#### `verifyOfflineLicense(licenseFile, publicKey)`
+**Phase 5:** Verify offline license with Ed25519 signature.
+
+```typescript
+const license = await client.verifyOfflineLicense(
+  licFileContents,
+  orgPublicKey
+);
+```
+
+#### `recordUsage(payload)`
+Record usage metrics.
+
+```typescript
+await client.recordUsage({
+  licenseKey: 'XXXX-XXXX',
+  metric_name: 'api_calls',
+  value: 1,
+  increment: true
+});
+```
+
+#### `getHardwareId()`
+Get unique device identifier.
+
+```typescript
+const deviceId = client.getHardwareId();
+```
+
+## Configuration
+
+```typescript
+const client = new LicenseFlowClient({
+  apiKey: 'your-api-key',
+  baseUrl: 'https://your-project.supabase.co',
+  cacheTTL: 300, // Cache duration in seconds (default: 5 minutes)
+  retries: 3 // Number of retries for failed requests (default: 3)
+});
+```
+
+## Error Handling
+
+```typescript
+import { 
+  LicenseFlowError, 
+  InvalidLicenseError, 
+  LicenseExpiredError,
+  MaxActivationsError,
+  RateLimitError,
+  NetworkError
+} from 'licenseflow';
+
+try {
+  await client.activate({licenseKey, device_id});
+} catch (error) {
+  if (error instanceof LicenseExpiredError) {
+    console.error('License has expired');
+  } else if (error instanceof MaxActivationsError) {
+    console.error('Maximum device limit reached');
+  } else if (error instanceof RateLimitError) {
+    console.error('Rate limit exceeded, try again later');
+  }
+}
+```
+
+## TypeScript Support
+
+Fully typed with TypeScript:
+
+```typescript
+import { 
+  LicenseFlowClient, 
+  VerificationResponse,
+  ActivationResponse,
+  UpdateInfo,
+  ArtifactDownload
+} from 'licenseflow';
+```
+
+## Caching
+
+The SDK automatically caches verification responses for better performance:
+
+```typescript
+// First call hits the API
+const result1 = await client.verify({licenseKey, device_id});
+
+// Second call uses cache (within TTL window)
+const result2 = await client.verify({licenseKey, device_id});
+
+// Clear cache manually
+client.clearCache();
+```
+
+## Examples
+
+See the [examples](./examples) directory for complete examples:
+
+- Basic activation and verification
+- Entitlements-based features
+- Auto-update implementation
+- Offline license handling
+
+## Migration from v1.x
+
+### Breaking Changes
+
+- `VerificationResponse` now includes `entitlements?: Record<string, any>`
+- No other breaking changes (backward compatible)
+
+### New in v2.0
+
+- ✅ Entitlements system
+- ✅ Release management
+- ✅ Offline licensing
+- ✅ Ed25519 cryptographic verification
 
 ## License
 
 MIT
+
+## Support
+
+- Documentation: https://docs.licenseflow.com
+- Issues: https://github.com/your-org/licenseflow/issues
+- Discord: https://discord.gg/licenseflow
