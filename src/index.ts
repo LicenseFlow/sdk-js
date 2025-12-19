@@ -209,8 +209,24 @@ export class LicenseFlowClient {
         }
     }
 
+    async deactivate(payload: { license_key: string; device_id?: string }): Promise<{ success: boolean }> {
+        const deviceId = payload.device_id || this.getHardwareId();
+
+        try {
+            const response = await this.api.post('/functions/v1/deactivate-license', {
+                license_key: payload.license_key,
+                device_id: deviceId,
+            });
+
+            this.clearCache(); // Clear cache to reflect changes
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
     /**
-     * Clear the internal cache
+     * Clears the internal verification cache.
      */
     clearCache(): void {
         this.cache.flushAll();

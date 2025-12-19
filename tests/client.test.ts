@@ -50,6 +50,18 @@ describe('LicenseFlowClient', () => {
             license_key: 'TEST-KEY'
         });
         expect(res2.valid).toBe(true);
+        expect(res2.cached).toBe(true);
+    });
+
+    it('should deactivate a license', async () => {
+        server.use(
+            http.post('https://api.test/functions/v1/deactivate-license', () => {
+                return HttpResponse.json({ success: true, message: 'Deactivated' });
+            })
+        );
+
+        const res = await client.deactivate({ license_key: 'TEST-KEY' });
+        expect(res.success).toBe(true);
     });
 
     it('should throw RateLimitError on 429', async () => {
