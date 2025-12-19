@@ -1,15 +1,52 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, AxiosError } from 'axios';
+import axiosRetry from 'axios-retry';
 import * as jose from 'jose';
+import { machineIdSync } from 'node-machine-id';
+import NodeCache from 'node-cache';
+import os from 'os';
+
+/**
+ * Custom Error Classes
+ */
+export class LicenseFlowError extends Error {
+    constructor(message: string, public code?: string, public status?: number) {
+        super(message);
+        this.name = 'LicenseFlowError';
+    }
+}
+
+export class NetworkError extends LicenseFlowError {
+    constructor(message: string) {
+        super(message, 'NETWORK_ERROR');
+        this.name = 'NetworkError';
+    }
+}
+
+export class RateLimitError extends LicenseFlowError {
+    constructor(message: string) {
+        super(message, 'RATE_LIMIT_EXCEEDED', 429);
+        this.name = 'RateLimitError';
+    }
+}
+
+export class InvalidLicenseError extends LicenseFlowError {
+    constructor(message: string) {
+        super(message, 'INVALID_LICENSE', 400);
+        this.name = 'InvalidLicenseError';
+    }
+}
 
 export interface LicenseFlowConfig {
     baseUrl: string;
     apiKey: string;
-    jwtSecret?: string; // Optional for offline validation
+    jwtSecret?: string;
+    cacheTTL?: number; // Caching TTL in seconds (default 300)
+    retries?: number;  // Number of retries for network errors (default 3)
 }
 
 export interface ActivationPayload {
     license_key: string;
-    device_id: string;
+    device_id?: string;
     device_name?: string;
     hardware_fingerprint?: any;
     is_test?: boolean;
@@ -46,9 +83,17 @@ export interface VerificationResponse {
 export class LicenseFlowClient {
     private api: AxiosInstance;
     private config: LicenseFlowConfig;
+    private cache: NodeCache;
 
     constructor(config: LicenseFlowConfig) {
-        this.config = config;
+        this.config = {
+            cacheTTL: 300,
+            retries: 3,
+            ...config
+        };
+
+        this.cache = new NodeCache({ stdTTL: this.config.cacheTTL });
+
         this.api = axios.create({
             baseURL: config.baseUrl,
             headers: {
@@ -56,6 +101,27 @@ export class LicenseFlowClient {
                 'Content-Type': 'application/json',
             },
         });
+
+        // Configure Retries
+        axiosRetry(this.api, {
+            retries: this.config.retries,
+            retryDelay: axiosRetry.exponentialDelay,
+            retryCondition: (error: AxiosError) => {
+                return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.response?.status === 429;
+            },
+        });
+    }
+
+    /**
+     * Get unique hardware fingerprint for the current device
+     */
+    getHardwareId(): string {
+        try {
+            return machineIdSync();
+        } catch (error) {
+            console.warn('Failed to get hardware ID, falling back to hostname');
+            return os.hostname();
+        }
     }
 
     /**
@@ -63,10 +129,15 @@ export class LicenseFlowClient {
      */
     async activate(payload: ActivationPayload): Promise<ActivationResponse> {
         try {
+            // Automatically include hardware ID if not provided
+            if (!payload.device_id) {
+                payload.device_id = this.getHardwareId();
+            }
+
             const response = await this.api.post('/functions/v1/activate-license', payload);
             return response.data;
         } catch (error: any) {
-            return this.handleError(error);
+            throw this.handleError(error);
         }
     }
 
@@ -74,12 +145,29 @@ export class LicenseFlowClient {
      * Verify the current status of a license
      */
     async verify(payload: VerificationPayload): Promise<VerificationResponse> {
+        // Automatically include hardware ID if not provided
+        if (!payload.device_id) {
+            payload.device_id = this.getHardwareId();
+        }
+
+        const cacheKey = `verify:${payload.license_key}:${payload.device_id}`;
+        const cached = this.cache.get<VerificationResponse>(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
         try {
             const response = await this.api.post('/functions/v1/verify-license', payload);
-            return response.data;
+            const data = response.data;
+
+            if (data.valid) {
+                this.cache.set(cacheKey, data);
+            }
+
+            return data;
         } catch (error: any) {
-            const errRes = this.handleError(error);
-            return { valid: false, error: errRes.message };
+            throw this.handleError(error);
         }
     }
 
@@ -91,8 +179,7 @@ export class LicenseFlowClient {
             const response = await this.api.post('/functions/v1/record-usage', payload);
             return { success: true, ...response.data };
         } catch (error: any) {
-            const errRes = this.handleError(error);
-            return { success: false, error: errRes.message };
+            throw this.handleError(error);
         }
     }
 
@@ -122,10 +209,31 @@ export class LicenseFlowClient {
         }
     }
 
-    private handleError(error: any) {
-        if (error.response?.data) {
-            return error.response.data;
+    /**
+     * Clear the internal cache
+     */
+    clearCache(): void {
+        this.cache.flushAll();
+    }
+
+    private handleError(error: any): LicenseFlowError {
+        if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+            const data = error.response?.data;
+            const message = data?.message || data?.error || error.message;
+
+            if (status === 429) {
+                return new RateLimitError(message);
+            }
+            if (status === 400 || status === 404) {
+                return new InvalidLicenseError(message);
+            }
+            if (!status || status >= 500) {
+                return new NetworkError(message);
+            }
+            return new LicenseFlowError(message, 'API_ERROR', status);
         }
-        return { success: false, message: error.message || 'Network error' };
+
+        return new LicenseFlowError(error.message || 'Unknown error');
     }
 }

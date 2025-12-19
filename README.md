@@ -1,85 +1,69 @@
-# LicenseFlow JS SDK
+# @licenseflow/node-sdk
 
-The official TypeScript/JavaScript SDK for LicenseFlow. Robust license activation, verification, and usage tracking for your applications.
+Official Node.js SDK for LicenseFlow.
 
 ## Installation
 
 ```bash
-npm install @licenseflow/sdk
+npm install @licenseflow/node-sdk
 ```
 
 ## Quick Start
 
-### Initialize the Client
-
-```typescript
-import { LicenseFlowClient } from '@licenseflow/sdk';
+```javascript
+const { LicenseFlowClient } = require('@licenseflow/node-sdk');
 
 const client = new LicenseFlowClient({
-  baseUrl: 'https://your-api.licenseflow.com',
-  apiKey: 'your_publishable_api_key',
-  jwtSecret: 'your_jwt_secret' // Optional: needed for offline validation
-});
-```
-
-### Activate a License
-
-```typescript
-const response = await client.activate({
-  license_key: 'XXXX-XXXX-XXXX-XXXX',
-  device_id: 'unique_device_id',
-  device_name: 'Developer Laptop',
-  hardware_fingerprint: { /* optional fingerprint data */ }
+  baseUrl: 'https://your-project.supabase.co',
+  apiKey: 'your-api-key',
+  jwtSecret: 'your-jwt-secret' // Required for offline validation
 });
 
-if (response.success) {
-  console.log('License activated!', response.proof);
-  // Store response.proof for offline validation
+async function main() {
+  try {
+    // 1. Activate License (automatically generates hardware fingerprint if node-machine-id is available)
+    const activation = await client.activate({
+      license_key: 'XXXX-YYYY-ZZZZ-AAAA',
+      device_name: 'My Computer'
+    });
+    console.log('Activated:', activation.success);
+
+    // 2. Verify License (uses internal caching for performance)
+    const verification = await client.verify({
+      license_key: 'XXXX-YYYY-ZZZZ-AAAA'
+    });
+    console.log('Valid:', verification.valid);
+
+    // 3. Record Usage
+    await client.recordUsage({
+      license_key: 'XXXX-YYYY-ZZZZ-AAAA',
+      metric_name: 'tokens_used',
+      value: 150,
+      increment: true
+    });
+
+  } catch (error) {
+    if (error.name === 'RateLimitError') {
+      console.error('Slow down!');
+    } else if (error.name === 'InvalidLicenseError') {
+      console.error('License is not valid');
+    } else {
+      console.error('Error:', error.message);
+    }
+  }
 }
-```
 
-### Verify a License (Online)
-
-```typescript
-const status = await client.verify({
-  license_key: 'XXXX-XXXX-XXXX-XXXX',
-  device_id: 'unique_device_id'
-});
-
-if (status.valid) {
-  console.log('License is valid');
-}
-```
-
-### Validate Proof (Offline)
-
-```typescript
-const result = await client.validateProofOffline(storedProof);
-
-if (result.valid) {
-  console.log('Offline proof verified:', result.payload);
-}
-```
-
-### Track Usage
-
-```typescript
-await client.recordUsage({
-  license_key: 'XXXX-XXXX-XXXX-XXXX',
-  metric_name: 'api_requests',
-  value: 1,
-  increment: true
-});
+main();
 ```
 
 ## Features
 
-- **Multi-Environment Support**: Works in Node.js, Browsers, and Electron.
-- **Hardware Binding**: Support for custom hardware fingerprints.
-- **Offline Resilience**: Built-in JWT verification for signed license proofs.
-- **Usage Analytics**: Easily track feature consumption and API calls.
-- **Developer Sandbox**: Toggle `is_test` for development without affecting production metrics.
+- **Hardware Fingerprinting**: Built-in support for unique device identification.
+- **Smart Caching**: In-memory caching of verification results with configurable TTL.
+- **Automatic Retries**: Resilience against network blips with exponential backoff.
+- **TypeScript First**: First-class type definitions included.
+- **Offline Validation**: Validate signed proofs without an internet connection.
 
 ## License
 
-ISC
+MIT
