@@ -4,6 +4,8 @@ import * as jose from 'jose';
 import { machineIdSync } from 'node-machine-id';
 import NodeCache from 'node-cache';
 import os from 'os';
+import { webcrypto } from 'node:crypto'; // For offline verification
+
 
 /**
  * Custom Error Classes
@@ -80,6 +82,26 @@ export interface VerificationResponse {
     status?: string;
     proof?: string; // Signed JWT
     error?: string;
+    entitlements?: Record<string, any>;
+}
+
+export interface UpdateInfo {
+    id: string;
+    version: string;
+    changelog?: string;
+    published_at: string;
+}
+
+export interface ArtifactDownload {
+    url: string;
+    filename: string;
+    file_size: number;
+    checksum_sha256: string;
+    checksum_md5?: string;
+    platform: string;
+    architecture: string;
+    version: string;
+    expires_in: number;
 }
 
 export class LicenseFlowClient {
@@ -232,6 +254,133 @@ export class LicenseFlowClient {
      */
     clearCache(): void {
         this.cache.flushAll();
+    }
+
+    /**
+     * Phase 5: Entitlements - Check if license has a feature enabled
+     */
+    hasFeature(verification: VerificationResponse, featureCode: string): boolean {
+        if (!verification.valid || !verification.entitlements) {
+            return false;
+        }
+
+        const ent = verification.entitlements[featureCode];
+        if (!ent) return false;
+
+        if (typeof ent === 'boolean') return ent;
+        if (typeof ent === 'object') {
+            return ent.enabled === true || ent.value === true;
+        }
+        return ent === true;
+    }
+
+    /**
+     * Phase 5: Entitlements - Get entitlement value
+     */
+    getEntitlement(verification: VerificationResponse, featureCode: string): any {
+        if (!verification.valid || !verification.entitlements) {
+            return null;
+        }
+        return verification.entitlements[featureCode] || null;
+    }
+
+    /**
+     * Phase 5: Release Management - Check for software updates
+     */
+    async checkForUpdates(opts: {
+        currentVersion: string;
+        product_id: string;
+        channel?: string;
+    }): Promise<UpdateInfo | null> {
+        try {
+            const response = await this.api.get('/functions/v1/release-management/latest', {
+                params: {
+                    product_id: opts.product_id,
+                    channel: opts.channel || 'stable',
+                },
+            });
+
+            const data = response.data;
+
+            if (!data || data.version === opts.currentVersion) {
+                return null;
+            }
+
+            return {
+                id: data.id,
+                version: data.version,
+                changelog: data.changelog,
+                published_at: data.published_at,
+            };
+        } catch (error: any) {
+            if (error.response?.status === 404) return null; // No release found
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Phase 5: Release Management - Download artifact with license verification
+     */
+    async downloadArtifact(opts: {
+        licenseKey: string;
+        release_id?: string;
+        artifact_id?: string;
+        platform?: string;
+        architecture?: string;
+    }): Promise<ArtifactDownload> {
+        try {
+            const response = await this.api.post('/functions/v1/artifact-download', opts);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Phase 5: Offline Licensing - Verify offline license file
+     */
+    async verifyOfflineLicense(licenseFile: string, publicKey: string): Promise<any> {
+        try {
+            const data = JSON.parse(licenseFile);
+
+            if (!data.license || !data.signature) {
+                throw new Error('Invalid offline license format');
+            }
+
+            const message = JSON.stringify(data.license);
+            const encoder = new TextEncoder();
+            const messageBuffer = encoder.encode(message);
+            const signatureBuffer = Buffer.from(data['signature'], 'base64');
+            const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+
+            const cryptoKey = await webcrypto.subtle.importKey(
+                'raw',
+                publicKeyBuffer,
+                { name: 'Ed25519', namedCurve: 'Ed25519' },
+                false,
+                ['verify']
+            );
+
+            const isValid = await webcrypto.subtle.verify(
+                'Ed25519',
+                cryptoKey,
+                signatureBuffer,
+                messageBuffer
+            );
+
+            if (!isValid) {
+                throw new Error('Invalid offline license signature');
+            }
+
+            const validUntil = new Date(data.license.valid_until);
+            if (validUntil < new Date()) {
+                throw new Error('Offline license has expired');
+            }
+
+            return data.license;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
     }
 
     private handleError(error: any): LicenseFlowError {
