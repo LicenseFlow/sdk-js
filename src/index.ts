@@ -52,11 +52,13 @@ export interface ActivationPayload {
     device_name?: string;
     hardware_fingerprint?: any;
     is_test?: boolean;
+    environment_id?: string;
 }
 
 export interface VerificationPayload {
     license_key: string;
     device_id?: string;
+    environment_id?: string;
 }
 
 export interface UsagePayload {
@@ -65,6 +67,7 @@ export interface UsagePayload {
     value: number;
     increment?: boolean;
     is_test?: boolean;
+    environment_id?: string;
 }
 
 export interface ActivationResponse {
@@ -174,7 +177,7 @@ export class LicenseFlowClient {
             payload.device_id = this.getHardwareId();
         }
 
-        const cacheKey = `verify:${payload.license_key}:${payload.device_id}`;
+        const cacheKey = `verify:${payload.license_key}:${payload.device_id}:${payload.environment_id || 'default'}`;
         const cached = this.cache.get<VerificationResponse>(cacheKey);
 
         if (cached) {
@@ -182,7 +185,13 @@ export class LicenseFlowClient {
         }
 
         try {
-            const response = await this.api.post('/functions/v1/verify-license', payload);
+            // Map environment_id to environmentId for the backend if needed (backend expects environmentId in verify)
+            const backendPayload = {
+                licenseKey: payload.license_key,
+                deviceId: payload.device_id,
+                environmentId: payload.environment_id
+            };
+            const response = await this.api.post('/functions/v1/verify-license', backendPayload);
             const data = response.data;
 
             if (data.valid) {
@@ -233,13 +242,14 @@ export class LicenseFlowClient {
         }
     }
 
-    async deactivate(payload: { license_key: string; device_id?: string }): Promise<{ success: boolean }> {
+    async deactivate(payload: { license_key: string; device_id?: string; environment_id?: string }): Promise<{ success: boolean }> {
         const deviceId = payload.device_id || this.getHardwareId();
 
         try {
             const response = await this.api.post('/functions/v1/deactivate-license', {
                 license_key: payload.license_key,
                 device_id: deviceId,
+                environment_id: payload.environment_id
             });
 
             this.clearCache(); // Clear cache to reflect changes
