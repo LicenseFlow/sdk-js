@@ -125,6 +125,7 @@ export class LicenseFlowClient {
             baseURL: config.baseUrl,
             headers: {
                 'x-api-key': config.apiKey,
+                'Authorization': `Bearer ${config.apiKey}`,
                 'Content-Type': 'application/json',
             },
         });

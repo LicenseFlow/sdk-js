@@ -24,7 +24,7 @@ npm install licenseflow
 import { LicenseFlowClient } from 'licenseflow';
 
 const client = new LicenseFlowClient({
-  apiKey: 'your-api-key',
+  apiKey: 'lf_live_xxxxxxxxxxxx', // Generated from the SaaS platform
   baseUrl: 'https://your-project.supabase.co'
 });
 
