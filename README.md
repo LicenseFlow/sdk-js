@@ -296,6 +296,26 @@ See the [examples](./examples) directory for complete examples:
 - Auto-update implementation
 - Offline license handling
 
+## CLI Tool
+
+For command-line access and CI/CD integration, use the LicenseFlow CLI:
+
+```bash
+npm install -g @licenseflow/cli
+
+# Activate license on this machine
+licenseflow activate XXXX-XXXX-XXXX-XXXX --save
+
+# CI/CD checkout (temporary lease)
+licenseflow checkout XXXX-XXXX-XXXX-XXXX -r "github-$RUN_ID" -t 3600
+licenseflow checkin  # Release when done
+
+# Hardware fingerprinting
+licenseflow fingerprint --simple
+```
+
+See the [CLI README](../licenseflow-cli/README.md) for full documentation.
+
 ## Migration from v1.x
 
 ### Breaking Changes
@@ -309,6 +329,13 @@ See the [examples](./examples) directory for complete examples:
 - ✅ Release management
 - ✅ Offline licensing
 - ✅ Ed25519 cryptographic verification
+
+### New in v3.0
+
+- ✅ CLI tool integration
+- ✅ License checkout/lease API for CI/CD
+- ✅ Advanced hardware fingerprinting
+- ✅ Subscription-based feature gating
 
 ## License
 
