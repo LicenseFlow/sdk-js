@@ -343,6 +343,6 @@ MIT
 
 ## Support
 
-- Documentation: https://docs.licenseflow.com
+- Documentation: https://docs.licenseflow.dev
 - Issues: https://github.com/your-org/licenseflow/issues
 - Discord: https://discord.gg/licenseflow
