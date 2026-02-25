@@ -59,5 +59,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `getHardwareId()` - Get unique device identifier
 - `clearCache()` - Manual cache clearing
 
-[2.0.0]: https://github.com/your-org/licenseflow/compare/v1.0.0...v2.0.0
-[1.0.0]: https://github.com/your-org/licenseflow/releases/tag/v1.0.0
+[2.0.0]: https://github.com/licenseflow/js-sdk/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/licenseflow/js-sdk/releases/tag/v1.0.0

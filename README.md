@@ -344,5 +344,5 @@ MIT
 ## Support
 
 - Documentation: https://docs.licenseflow.dev
-- Issues: https://github.com/your-org/licenseflow/issues
+- Issues: https://github.com/licenseflow/js-sdk/issues
 - Discord: https://discord.gg/licenseflow

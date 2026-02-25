@@ -1,6 +1,6 @@
 {
   "name": "licenseflow",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,14 +19,24 @@
     "activation",
     "entitlements",
     "offline-licensing",
-    "release-management"
+    "release-management",
+    "floating-license",
+    "lease",
+    "heartbeat"
   ],
-  "author": "LicenseFlow",
+  "author": "LicenseFlow <hello@licenseflow.dev>",
   "license": "MIT",
-  "description": "Official Node.js SDK for LicenseFlow - Complete licensing and software distribution platform",
+  "description": "Official Node.js SDK for LicenseFlow — Complete licensing, activation, entitlements, floating licenses, and software distribution.",
+  "homepage": "https://licenseflow.dev",
+  "bugs": {
+    "url": "https://github.com/licenseflow/js-sdk/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/licenseflow"
+    "url": "https://github.com/licenseflow/js-sdk"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "axios": "^1.13.2",
