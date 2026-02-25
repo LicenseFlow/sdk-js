@@ -107,6 +107,22 @@ export interface ArtifactDownload {
     expires_in: number;
 }
 
+export interface LeaseResponse {
+    lease_key: string;
+    license_id: string;
+    expires_at: string;
+    duration_seconds: number;
+    status: string;
+}
+
+export interface CheckoutPayload {
+    license_key: string;
+    duration_seconds?: number;
+    requester_id?: string;
+    requester_type?: string;
+    metadata?: Record<string, any>;
+}
+
 export class LicenseFlowClient {
     private api: AxiosInstance;
     private config: LicenseFlowConfig;
@@ -391,6 +407,79 @@ export class LicenseFlowClient {
             return data.license;
         } catch (error: any) {
             throw this.handleError(error);
+        }
+    }
+
+    // ── Floating License Lease Methods ──
+
+    /**
+     * Acquire a temporary floating license lease
+     */
+    async checkoutLicense(payload: CheckoutPayload): Promise<LeaseResponse> {
+        try {
+            const body = {
+                license_key: payload.license_key,
+                duration_seconds: payload.duration_seconds ?? 3600,
+                requester_id: payload.requester_id ?? this.getHardwareId(),
+                requester_type: payload.requester_type ?? 'sdk',
+                metadata: payload.metadata,
+            };
+            const response = await this.api.post('/functions/v1/checkout-license', body);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Release (check-in) a floating license lease
+     */
+    async checkinLicense(leaseKey: string): Promise<{ success: boolean }> {
+        try {
+            const response = await this.api.post('/functions/v1/checkin-license', { lease_key: leaseKey });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Get the status of a floating license lease
+     */
+    async getLeaseStatus(leaseKey: string): Promise<LeaseResponse> {
+        try {
+            const response = await this.api.post('/functions/v1/lease-status', { lease_key: leaseKey });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    // ── Heartbeat ──
+
+    private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+    /**
+     * Start periodic heartbeat to keep a license session alive
+     */
+    startHeartbeat(licenseKey: string, intervalMs: number = 60000): void {
+        this.stopHeartbeat();
+        this.heartbeatInterval = setInterval(async () => {
+            try {
+                await this.verify({ license_key: licenseKey });
+            } catch (err) {
+                console.warn('LicenseFlow heartbeat failed:', err);
+            }
+        }, intervalMs);
+    }
+
+    /**
+     * Stop the periodic heartbeat
+     */
+    stopHeartbeat(): void {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
         }
     }
 
