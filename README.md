@@ -1,6 +1,8 @@
 # LicenseFlow Node.js SDK
 
-Official Node.js/TypeScript SDK for LicenseFlow - Complete licensing and software distribution platform.
+**Stop Building Licensing Infrastructure. Start Shipping Software.**
+
+The official Node.js/TypeScript SDK for LicenseFlow. Protect your intellectual property, enforce entitlements, and manage software distribution with one-line integration.
 
 ## Installation
 
