@@ -27,7 +27,7 @@ import { LicenseFlowClient } from 'licenseflow';
 
 const client = new LicenseFlowClient({
   apiKey: 'lf_live_xxxxxxxxxxxx', // Generated from the SaaS platform
-  baseUrl: 'https://your-project.supabase.co'
+  baseUrl: 'https://api.licenseflow.dev'
 });
 
 // Activate license
