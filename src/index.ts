@@ -455,6 +455,135 @@ export class LicenseFlowClient {
         }
     }
 
+    // ── Credits / Usage-Based Billing ──
+
+    /**
+     * Consume credits from the organization's balance
+     */
+    async consumeCredits(payload: {
+        amount: number;
+        description?: string;
+        product_id?: string;
+        currency?: string;
+        reference_id?: string;
+        reference_type?: string;
+        metadata?: Record<string, any>;
+    }): Promise<{ success: boolean; remaining?: number; consumed?: number; error?: string }> {
+        try {
+            const response = await this.api.post('/functions/v1/consume-credits', payload);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Get credit balance for the organization
+     */
+    async getCreditsBalance(productId?: string, currency?: string): Promise<any> {
+        try {
+            const params: Record<string, string> = {};
+            if (productId) params.product_id = productId;
+            if (currency) params.currency = currency;
+            const response = await this.api.get('/functions/v1/get-credit-balance', { params });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    // ── Entitlements Management ──
+
+    /**
+     * List all entitlements for the organization
+     */
+    async listEntitlements(): Promise<any[]> {
+        try {
+            const response = await this.api.get('/functions/v1/manage-entitlements');
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Create a new entitlement definition
+     */
+    async createEntitlement(payload: {
+        code: string;
+        name: string;
+        description?: string;
+        data_type?: 'boolean' | 'number' | 'string' | 'json';
+        metadata?: Record<string, any>;
+    }): Promise<any> {
+        try {
+            const response = await this.api.post('/functions/v1/manage-entitlements', payload);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Update an existing entitlement definition
+     */
+    async updateEntitlement(entitlementId: string, payload: {
+        code?: string;
+        name?: string;
+        description?: string;
+        data_type?: 'boolean' | 'number' | 'string' | 'json';
+        metadata?: Record<string, any>;
+    }): Promise<any> {
+        try {
+            const response = await this.api.patch(`/functions/v1/manage-entitlements/${entitlementId}`, payload);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Delete an entitlement definition
+     */
+    async deleteEntitlement(entitlementId: string): Promise<{ success: boolean }> {
+        try {
+            const response = await this.api.delete(`/functions/v1/manage-entitlements/${entitlementId}`);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Assign an entitlement to a specific license
+     */
+    async assignEntitlementToLicense(entitlementId: string, licenseId: string, value: Record<string, any>): Promise<any> {
+        try {
+            const response = await this.api.post(`/functions/v1/manage-entitlements/${entitlementId}/assign-to-license`, {
+                license_id: licenseId,
+                value,
+            });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Assign an entitlement to a policy (as default)
+     */
+    async assignEntitlementToPolicy(entitlementId: string, policyId: string, defaultValue: Record<string, any>): Promise<any> {
+        try {
+            const response = await this.api.post(`/functions/v1/manage-entitlements/${entitlementId}/assign-to-policy`, {
+                policy_id: policyId,
+                default_value: defaultValue,
+            });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
     // ── Heartbeat ──
 
     private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
