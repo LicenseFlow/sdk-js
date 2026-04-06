@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-17
+
+### Added
+- Environment scoping support: `environment_id` parameter in activation, verification, and usage payloads
+- Cache isolation between environments to prevent cross-environment cache collisions
+- Floating license lease methods: `checkoutLicense()`, `checkinLicense()`, `getLeaseStatus()`
+- Credit system methods: `consumeCredits()`, `getCreditsBalance()`
+- Entitlement management: `listEntitlements()`, `createEntitlement()`, `updateEntitlement()`, `deleteEntitlement()`
+- Entitlement assignment: `assignEntitlementToLicense()`, `assignEntitlementToPolicy()`
+- Heartbeat support: `startHeartbeat()`, `stopHeartbeat()`
+
+### Changed
+- Cache key format now includes environment context
+- Defaults to `'default'` environment when `environment_id` is not provided
+
 ## [2.0.0] - 2025-01-19
 
 ### Added - Phase 5 Enterprise Features
