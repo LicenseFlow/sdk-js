@@ -123,6 +123,34 @@ export interface CheckoutPayload {
     metadata?: Record<string, any>;
 }
 
+export interface IdentityResolutionPayload {
+    /** Verified email address of the authenticated end user. */
+    email: string;
+    /** Optional: scope the resolution to a single product. */
+    product_id?: string;
+    /** Optional: environment to resolve against. */
+    environment_id?: string;
+}
+
+export interface IdentityEntitlementGrant {
+    license_id: string;
+    license_key?: string;
+    product_id: string;
+    product_name?: string;
+    source: 'owner' | 'seat';
+    status: string;
+    expires_at?: string | null;
+    entitlements: Record<string, any>;
+}
+
+export interface IdentityResolutionResponse {
+    resolved: boolean;
+    email: string;
+    grants: IdentityEntitlementGrant[];
+    entitlements: Record<string, any>;
+    error?: string;
+}
+
 export class LicenseFlowClient {
     private api: AxiosInstance;
     private config: LicenseFlowConfig;
@@ -228,6 +256,39 @@ export class LicenseFlowClient {
         try {
             const response = await this.api.post('/functions/v1/record-usage', payload);
             return { success: true, ...response.data };
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Identity-based (keyless) entitlement resolution.
+     *
+     * Resolve everything an authenticated person is entitled to from their email
+     * alone — licenses they own plus any seats assigned to them — without handling
+     * a license key. Authenticate the user in your own app (or IDP) first, then
+     * call this from your backend with the verified email.
+     */
+    async resolveForIdentity(payload: IdentityResolutionPayload): Promise<IdentityResolutionResponse> {
+        const cacheKey = `identity:${payload.email}:${payload.product_id || 'all'}:${payload.environment_id || 'default'}`;
+        const cached = this.cache.get<IdentityResolutionResponse>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            const response = await this.api.post('/functions/v1/resolve-entitlements', {
+                email: payload.email,
+                productId: payload.product_id,
+                environmentId: payload.environment_id,
+            });
+            const data = response.data as IdentityResolutionResponse;
+
+            if (data.resolved) {
+                this.cache.set(cacheKey, data);
+            }
+
+            return data;
         } catch (error: any) {
             throw this.handleError(error);
         }
