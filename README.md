@@ -279,9 +279,13 @@ client.stopHeartbeat();
 const client = new LicenseFlowClient({
   apiKey: 'lf_live_xxxxxxxxxxxx',
   baseUrl: 'https://api.licenseflow.dev',
-  jwtSecret: 'your-jwt-secret',  // For offline JWT validation
-  cacheTTL: 300,                  // Cache duration in seconds (default 5 min)
-  retries: 3                      // Retry count for failed requests
+  jwtSecret: 'your-jwt-secret', // For offline JWT validation
+  cache: {
+    ttlMs: 300_000,        // Cache TTL — 5 minutes (default)
+    graceMs: 259_200_000,  // Offline grace — 72 hours (default)
+    encryptKey: 'optional-aes-key' // AES-256 disk cache encryption
+  },
+  retries: 3               // Retry count for failed requests
 });
 ```
 
@@ -329,12 +333,12 @@ import type {
 For command-line access and CI/CD integration:
 
 ```bash
-npm install -g @licenseflow/cli
+npm install -g licenseflow-cli
 
-licenseflow activate XXXX-XXXX-XXXX-XXXX --save
-licenseflow checkout XXXX-XXXX -r "ci-$RUN_ID" -t 3600
-licenseflow checkin
-licenseflow fingerprint --simple
+lf activate XXXX-XXXX-XXXX-XXXX
+lf checkout --feature ai_features
+lf checkin  --feature ai_features
+lf fingerprint
 ```
 
 See the [CLI README](../licenseflow-cli/README.md) for full documentation.
@@ -346,6 +350,6 @@ MIT
 ## Links
 
 - 📖 [Documentation](https://docs.licenseflow.dev)
-- 🐛 [Issues](https://github.com/licenseflow/js-sdk/issues)
+- 🐛 [Issues](https://github.com/LicenseFlow/sdk-js/issues)
 - 💬 [Discord](https://discord.gg/licenseflow)
 - 🏠 [Homepage](https://licenseflow.dev)
