@@ -40,7 +40,8 @@ export class InvalidLicenseError extends LicenseFlowError {
 
 export interface LicenseFlowConfig {
     baseUrl: string;
-    apiKey: string;
+    apiKey?: string;
+    clientToken?: string;
     jwtSecret?: string;
     cacheTTL?: number; // Caching TTL in seconds (default 300)
     retries?: number;  // Number of retries for network errors (default 3)
@@ -165,13 +166,23 @@ export class LicenseFlowClient {
 
         this.cache = new NodeCache({ stdTTL: this.config.cacheTTL });
 
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        if (config.apiKey) {
+            headers['x-api-key'] = config.apiKey;
+            headers['Authorization'] = `Bearer ${config.apiKey}`;
+        }
+        if (config.clientToken) {
+            headers['x-client-token'] = config.clientToken;
+            if (!config.apiKey) {
+                headers['Authorization'] = `Bearer ${config.clientToken}`;
+            }
+        }
+
         this.api = axios.create({
             baseURL: config.baseUrl,
-            headers: {
-                'x-api-key': config.apiKey,
-                'Authorization': `Bearer ${config.apiKey}`,
-                'Content-Type': 'application/json',
-            },
+            headers,
         });
 
         // Configure Retries
@@ -516,7 +527,43 @@ export class LicenseFlowClient {
         }
     }
 
-    // ── Credits / Usage-Based Billing ──
+    // ── Credits / Usage-Based Billing & Token Metering ──
+
+    /**
+     * Meter usage (record consumption or decrement units for token-metered licenses)
+     */
+    async meterUsage(payload: {
+        metric_name: string;
+        value?: number;
+        license_key?: string;
+        client_token?: string;
+        metadata?: Record<string, any>;
+    }): Promise<{
+        accepted: boolean;
+        current_usage?: number;
+        usage_limit?: number;
+        remaining_tokens?: number;
+        event_count?: number;
+        processing?: string;
+        error?: string;
+    }> {
+        try {
+            const headers: Record<string, string> = {};
+            if (payload.client_token) {
+                headers['x-client-token'] = payload.client_token;
+                headers['Authorization'] = `Bearer ${payload.client_token}`;
+            }
+            const response = await this.api.post('/functions/v1/record-usage', {
+                metric_name: payload.metric_name,
+                metric_value: payload.value ?? 1,
+                license_key: payload.license_key,
+                metadata: payload.metadata,
+            }, { headers });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
 
     /**
      * Consume credits from the organization's balance
