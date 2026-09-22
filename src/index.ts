@@ -71,6 +71,30 @@ export interface UsagePayload {
     environment_id?: string;
 }
 
+export interface UsageTrackOptions {
+    licenseKey?: string;
+    customerId?: string;
+    featureName: string;
+    quantity?: number;
+    idempotencyKey?: string;
+    dimensions?: Record<string, any>;
+    metadata?: Record<string, any>;
+    unit?: string;
+    isTest?: boolean;
+}
+
+export interface UsageTrackResponse {
+    success: boolean;
+    status: 'normal' | 'warning' | 'critical' | 'exceeded';
+    action: 'ALLOW' | 'WARN' | 'BLOCK';
+    currentUsage?: number;
+    quotaLimit?: number | null;
+    overageUnits?: number;
+    enforcementPolicy?: string;
+    eventId?: string;
+    isDuplicate?: boolean;
+}
+
 export interface ActivationResponse {
     success: boolean;
     message: string;
@@ -261,7 +285,7 @@ export class LicenseFlowClient {
     }
 
     /**
-     * Record usage metrics for a license
+     * Record usage metrics for a license (legacy signature)
      */
     async recordUsage(payload: UsagePayload): Promise<{ success: boolean; error?: string }> {
         try {
@@ -270,6 +294,49 @@ export class LicenseFlowClient {
         } catch (error: any) {
             throw this.handleError(error);
         }
+    }
+
+    /**
+     * High-throughput usage & telemetry tracking with idempotency, dimensions, and quota enforcement.
+     */
+    async trackUsage(options: UsageTrackOptions): Promise<UsageTrackResponse> {
+        try {
+            const payload = {
+                license_key: options.licenseKey,
+                customer_id: options.customerId,
+                event_name: options.featureName,
+                quantity: options.quantity ?? 1,
+                idempotency_key: options.idempotencyKey,
+                dimensions: options.dimensions || {},
+                metadata: options.metadata || {},
+                unit: options.unit || 'units',
+                is_test: options.isTest,
+            };
+            const response = await this.api.post('/functions/v1/record-usage', payload);
+            const data = response.data;
+            return {
+                success: data.success ?? true,
+                status: data.status || 'normal',
+                action: data.action || 'ALLOW',
+                currentUsage: data.current_usage ?? data.currentUsage,
+                quotaLimit: data.quota_limit ?? data.quotaLimit,
+                overageUnits: data.overage_units ?? data.overageUnits ?? 0,
+                enforcementPolicy: data.enforcement_policy,
+                eventId: data.event_id,
+                isDuplicate: data.is_duplicate,
+            };
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Fluent usage namespace helper
+     */
+    public get usage() {
+        return {
+            track: (opts: UsageTrackOptions) => this.trackUsage(opts),
+        };
     }
 
     /**

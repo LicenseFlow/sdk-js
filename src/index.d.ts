@@ -21,6 +21,28 @@ export interface UsagePayload {
     increment?: boolean;
     is_test?: boolean;
 }
+export interface UsageTrackOptions {
+    licenseKey?: string;
+    customerId?: string;
+    featureName: string;
+    quantity?: number;
+    idempotencyKey?: string;
+    dimensions?: Record<string, any>;
+    metadata?: Record<string, any>;
+    unit?: string;
+    isTest?: boolean;
+}
+export interface UsageTrackResponse {
+    success: boolean;
+    status: 'normal' | 'warning' | 'critical' | 'exceeded';
+    action: 'ALLOW' | 'WARN' | 'BLOCK';
+    currentUsage?: number;
+    quotaLimit?: number | null;
+    overageUnits?: number;
+    enforcementPolicy?: string;
+    eventId?: string;
+    isDuplicate?: boolean;
+}
 export interface ActivationResponse {
     success: boolean;
     message: string;
@@ -53,6 +75,13 @@ export declare class LicenseFlowClient {
         success: boolean;
         error?: string;
     }>;
+    /**
+     * Track high-throughput usage telemetry
+     */
+    trackUsage(options: UsageTrackOptions): Promise<UsageTrackResponse>;
+    usage: {
+        track: (options: UsageTrackOptions) => Promise<UsageTrackResponse>;
+    };
     /**
      * Validate a signed proof offline
      * @param proof The signed JWT from the server
