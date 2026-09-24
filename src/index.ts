@@ -362,21 +362,21 @@ export class LicenseFlowClient {
             const data = response.data as IdentityResolutionResponse;
 
             if (data.resolved) {
-                this.cache.set(cacheKey, { data, at: Date.now() });
+                this.cache.set(cacheKey, data);
             } else {
-                this.cache.delete(cacheKey);
+                this.cache.invalidate(cacheKey);
             }
 
             return data;
         } catch (error: any) {
             const status = error?.response?.status;
             const isNetworkFailure = !status || status >= 500;
-            const cached = this.cache.get<{ data: IdentityResolutionResponse; at: number }>(cacheKey);
+            const cached = this.cache.get<IdentityResolutionResponse>(cacheKey);
             const IDENTITY_FALLBACK_MS = 5 * 60 * 1000;
-            if (isNetworkFailure && cached && Date.now() - cached.at < IDENTITY_FALLBACK_MS) {
+            if (isNetworkFailure && cached && Date.now() - cached.cachedAt < IDENTITY_FALLBACK_MS) {
                 return cached.data;
             }
-            if (!isNetworkFailure) this.cache.delete(cacheKey);
+            if (!isNetworkFailure) this.cache.invalidate(cacheKey);
             throw this.handleError(error);
         }
     }
