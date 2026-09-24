@@ -349,11 +349,10 @@ export class LicenseFlowClient {
      */
     async resolveForIdentity(payload: IdentityResolutionPayload): Promise<IdentityResolutionResponse> {
         const cacheKey = `identity:${payload.email}:${payload.product_id || 'all'}:${payload.environment_id || 'default'}`;
-        const cached = this.cache.get<IdentityResolutionResponse>(cacheKey);
-        if (cached) {
-            return cached;
-        }
 
+        // Seats can be reclaimed at any time, so the server is always asked first.
+        // A cached result is only used when the server can't be reached, and only
+        // for a short window — never as a substitute for a real revocation answer.
         try {
             const response = await this.api.post('/functions/v1/resolve-entitlements', {
                 email: payload.email,
@@ -363,11 +362,21 @@ export class LicenseFlowClient {
             const data = response.data as IdentityResolutionResponse;
 
             if (data.resolved) {
-                this.cache.set(cacheKey, data);
+                this.cache.set(cacheKey, { data, at: Date.now() });
+            } else {
+                this.cache.delete(cacheKey);
             }
 
             return data;
         } catch (error: any) {
+            const status = error?.response?.status;
+            const isNetworkFailure = !status || status >= 500;
+            const cached = this.cache.get<{ data: IdentityResolutionResponse; at: number }>(cacheKey);
+            const IDENTITY_FALLBACK_MS = 5 * 60 * 1000;
+            if (isNetworkFailure && cached && Date.now() - cached.at < IDENTITY_FALLBACK_MS) {
+                return cached.data;
+            }
+            if (!isNetworkFailure) this.cache.delete(cacheKey);
             throw this.handleError(error);
         }
     }
