@@ -896,6 +896,68 @@ export class LicenseFlowClient {
     };
 
     /**
+     * AI Token Budget & Gateway (License-key-based AI access)
+     *
+     * Query the remaining inference token quota for a license key
+     * and send chat completions directly through the AI Gateway
+     * using the license key as authentication.
+     */
+    public readonly aiGateway = {
+        /**
+         * Check AI token budget for a license key.
+         * Returns quota, used, remaining, allowed models, and whether
+         * a given token count fits within the remaining budget.
+         */
+        getAiTokenBudget: async (licenseKey: string, requestedTokens = 0): Promise<{
+            has_quota: boolean;
+            quota?: number;
+            used?: number;
+            remaining?: number;
+            sufficient?: boolean;
+            allowed_models?: string;
+            reason?: string;
+        }> => {
+            try {
+                const response = await this.api.post('/rest/v1/rpc/check_ai_token_budget', {
+                    p_license_id: licenseKey,
+                    p_requested_tokens: requestedTokens,
+                });
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+
+        /**
+         * Send a chat completion through the AI Gateway using a license key.
+         * The license key must have an ai_token_quota entitlement.
+         *
+         * @param licenseKey - The software license key
+         * @param params - Chat completion parameters (model, messages, etc.)
+         */
+        chatCompletion: async (licenseKey: string, params: {
+            model: string;
+            messages: Array<{ role: string; content: string }>;
+            subject?: string;
+            temperature?: number;
+            max_tokens?: number;
+            stream?: boolean;
+            metadata?: Record<string, unknown>;
+        }) => {
+            try {
+                const response = await this.api.post('/functions/v1/ai-gateway', params, {
+                    headers: {
+                        'x-license-key': licenseKey,
+                    },
+                });
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
+    /**
      * Continuous SOC 2 Type II Evidence Engine
      */
     public readonly compliance = {
