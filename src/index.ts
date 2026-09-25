@@ -796,6 +796,119 @@ export class LicenseFlowClient {
         }
     }
 
+    /**
+     * AI Control Plane & Ingress Gateway
+     */
+    public readonly gateway = {
+        createCompletion: async (payload: {
+            model: string;
+            messages: Array<{ role: string; content: string }>;
+            agentId?: string;
+            geoPolicy?: string;
+            fallbackModel?: string;
+            temperature?: number;
+            max_tokens?: number;
+            stream?: boolean;
+            metadata?: Record<string, unknown>;
+        }) => {
+            try {
+                const headers: Record<string, string> = {};
+                if (payload.agentId) headers['x-lf-agent-id'] = payload.agentId;
+                if (payload.geoPolicy) headers['x-lf-geo-policy'] = payload.geoPolicy;
+                if (payload.fallbackModel) headers['x-lf-fallback-model'] = payload.fallbackModel;
+
+                const response = await this.api.post('/functions/v1/ai-gateway', payload, { headers });
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
+    /**
+     * Zero-Trust Credential Vault
+     */
+    public readonly vault = {
+        storeSecret: async (params: {
+            provider: string;
+            keyLabel: string;
+            secretKey: string;
+            allowedModels?: string[];
+            allowedAgentIds?: string[];
+        }) => {
+            try {
+                const response = await this.api.post('/functions/v1/vault-keys', params);
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
+    /**
+     * Autonomous Emergency Kill Switches & TTL
+     */
+    public readonly killSwitch = {
+        trigger: async (params: {
+            targetId: string;
+            level: 'soft' | 'hard' | 'cascading' | 'panic';
+            reason: string;
+            ttlSeconds?: number;
+        }) => {
+            try {
+                const response = await this.api.post('/functions/v1/kill-switch', params);
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+        panic: async (reason = 'Global Emergency Swarm Quarantine') => {
+            try {
+                const response = await this.api.post('/functions/v1/kill-switch', {
+                    targetId: '*',
+                    level: 'panic',
+                    reason,
+                });
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
+    /**
+     * Sovereign Regional Geo-Policies (GDPR / Data Residency)
+     */
+    public readonly geoPolicies = {
+        create: async (params: {
+            policyName: string;
+            allowedRegions: string[];
+            enforcementMode?: 'warn' | 'block';
+            targetAgentPatterns?: string[];
+        }) => {
+            try {
+                const response = await this.api.post('/functions/v1/geo-policies', params);
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
+    /**
+     * Continuous SOC 2 Type II Evidence Engine
+     */
+    public readonly compliance = {
+        getSoc2Evidence: async (params?: { timeframe?: string; format?: string }) => {
+            try {
+                const response = await this.api.get('/functions/v1/soc2-evidence-collector', { params });
+                return response.data;
+            } catch (error) {
+                throw this.handleError(error);
+            }
+        },
+    };
+
     private handleError(error: any): LicenseFlowError {
         if (axios.isAxiosError(error)) {
             const status = error.response?.status;
