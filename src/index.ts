@@ -176,6 +176,52 @@ export interface IdentityResolutionResponse {
     error?: string;
 }
 
+export interface AuthorizeOptions {
+    /** Subject requesting access (agent, service, user, device, machine, API client, or license key) */
+    subject: string;
+    /** Resource identifier (model, API, endpoint, dataset, feature, tool, workflow) */
+    resource: string;
+    /** Action requested (e.g. "invoke", "execute", "read", "write", "export", or "*") */
+    action?: string;
+    /** Operational environment ("production", "staging", "development") */
+    environment?: string;
+    /** Geographic region or jurisdiction ("EU", "GB", "US", "eu-west-2") */
+    region?: string;
+    /** Consumable units requested for sliding-window quota checks (e.g. 5000 tokens) */
+    requestedUnits?: number;
+    /** Context metadata passed into dynamic policy rules */
+    context?: Record<string, unknown>;
+    /** Simulation dry-run flag — evaluates full policy tree without committing changes */
+    dryRun?: boolean;
+}
+
+export interface AuthorizationDecision {
+    allowed: boolean;
+    decision: 'ALLOW' | 'DENY' | 'THROTTLE' | 'REQUIRE_APPROVAL';
+    code: string;
+    reason: string;
+    diagnostics?: {
+        precedence_step: string;
+        matched_policy?: string | null;
+        policy_version?: string | null;
+        evaluated_environment?: string | null;
+        evaluated_region?: string | null;
+        required_entitlement?: string | null;
+        explanation?: string;
+    };
+    subject?: { id: string; type: string; name?: string } | null;
+    resource?: { id: string; type: string; name?: string } | null;
+    action: string;
+    environment?: string | null;
+    limits?: { remaining_quota: number | null; unit: string };
+    routing_override?: Record<string, unknown> | null;
+    budget?: { current_spend: number; limit: number; action_on_exceeded: string } | null;
+    approval_request_id?: string | null;
+    dry_run?: boolean;
+    latency_ms: number;
+    evaluated_at: string;
+}
+
 export class LicenseFlowClient {
     private api: AxiosInstance;
     private config: LicenseFlowConfig;
@@ -217,6 +263,95 @@ export class LicenseFlowClient {
                 return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.response?.status === 429;
             },
         });
+    }
+
+    /**
+     * Runtime Authorization Control Plane (POST /v1/authorize)
+     * Evaluates whether a subject (user, agent, service, API client) is entitled
+     * to perform an action on a protected resource under active policies, quotas, and budgets.
+     */
+    async authorize(options: AuthorizeOptions): Promise<AuthorizationDecision> {
+        try {
+            const payload = {
+                subject: options.subject,
+                resource: options.resource,
+                action: options.action || '*',
+                environment: options.environment,
+                region: options.region,
+                requested_units: options.requestedUnits,
+                context: options.context,
+                dry_run: options.dryRun || false,
+            };
+
+            const response = await this.api.post('/functions/v1/authorize', payload);
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.data?.decision) {
+                return error.response.data as AuthorizationDecision;
+            }
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Check if a subject has explicit entitlement to access a resource.
+     * Returns true if allowed, false if denied.
+     */
+    async checkEntitlement(subject: string, resource: string, action = '*'): Promise<boolean> {
+        try {
+            const decision = await this.authorize({ subject, resource, action });
+            return decision.allowed;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Universal Metering Event Ingestion (POST /v1/meter)
+     * Records consumption, updates dimensioned meters, and deducts from spending budgets.
+     */
+    async recordUsageEvent(options: {
+        subject: string;
+        resource: string;
+        meterKey: string;
+        units: number;
+        dimensions?: Record<string, unknown>;
+        metadata?: Record<string, unknown>;
+        idempotencyKey?: string;
+    }): Promise<{ success: boolean; event_id?: string; credits_deducted?: number }> {
+        try {
+            const payload = {
+                operation: 'record',
+                meter_key: options.meterKey,
+                subject: options.subject,
+                resource: options.resource,
+                units: options.units,
+                dimensions: options.dimensions || {},
+                metadata: options.metadata || {},
+                idempotency_key: options.idempotencyKey,
+            };
+
+            const response = await this.api.post('/functions/v1/meter', payload);
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Emergency Revocation / Kill Switch Trigger
+     */
+    async revoke(targetIdentifier: string, reason: string): Promise<{ success: boolean; status: string }> {
+        try {
+            const response = await this.api.post('/functions/v1/kill-switch', {
+                targetId: targetIdentifier,
+                level: 'hard',
+                reason,
+            });
+            return response.data;
+        } catch (error: any) {
+            throw this.handleError(error);
+        }
     }
 
     /**
